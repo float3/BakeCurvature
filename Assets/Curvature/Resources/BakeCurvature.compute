@@ -1,0 +1,101 @@
+﻿#pragma kernel ComputeCurvature
+
+int indicelength;
+
+struct Vertex
+{
+    float3 position;
+    float3 normal;
+    float4 tangent;
+};
+
+float sq(float x)
+{
+    return x * x;
+}
+
+// https://computergraphics.stackexchange.com/questions/1718/what-is-the-simplest-way-to-compute-principal-curvature-for-a-mesh-triangle
+// Nathan Reed
+float curvatureAlongEdge(Vertex vert0, Vertex vert1)
+{
+    float3 normalDelta = normalize(vert1.normal) - normalize(vert0.normal);
+    float3 posDelta = (vert1.position) - (vert0.position);
+    return dot((normalDelta), normalize(posDelta)) / sq(length(normalize(posDelta)));
+}
+
+[numthreads(64,1,1)]
+void ComputeCurvature(uint3 id : SV_DispatchThreadID, RWStructuredBuffer<float3> verts, RWStructuredBuffer<float3> normals,
+            RWStructuredBuffer<float4> tangents, RWStructuredBuffer<int3> indices, RWStructuredBuffer<float> output)
+{
+    float meanCurvature = 0;
+    int divisor = 0;
+
+    ddx(indicelength);
+
+    Vertex currentVertex;
+    currentVertex.position = verts[id.x];
+    currentVertex.normal = normals[id.x];
+    currentVertex.tangent = tangents[id.x];
+
+    //find all triangles that include this vertex
+    for (int i = 0; i < indicelength; i++)
+    {
+        //if the current vertex [id.x] is part of the triangle
+        //we construct the edge between the two other vertices of that triangle and calculate the curvature between them
+        if (indices[i].x == id.x)
+        {
+            Vertex verty;
+            verty.position = verts[indices[i].y];
+            verty.normal = normals[indices[i].y];
+            verty.tangent = tangents[indices[i].y];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, verty);
+            divisor++;
+
+            Vertex vertz;
+            vertz.position = verts[indices[i].z];
+            vertz.normal = normals[indices[i].z];
+            vertz.tangent = tangents[indices[i].z];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, vertz);
+            divisor++;
+        }
+        else if (indices[i].y == id.x)
+        {
+            Vertex vertx;
+            vertx.position = verts[indices[i].x];
+            vertx.normal = normals[indices[i].x];
+            vertx.tangent = tangents[indices[i].x];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, vertx);
+            divisor++;
+
+            Vertex vertz;
+            vertz.position = verts[indices[i].z];
+            vertz.normal = normals[indices[i].z];
+            vertz.tangent = tangents[indices[i].z];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, vertz);
+            divisor++;
+        }
+        else if (indices[i].z == id.x)
+        {
+            Vertex vertx;
+            vertx.position = verts[indices[i].x];
+            vertx.normal = normals[indices[i].x];
+            vertx.tangent = tangents[indices[i].x];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, vertx);
+            divisor++;
+
+            Vertex verty;
+            verty.position = verts[indices[i].y];
+            verty.normal = normals[indices[i].y];
+            verty.tangent = tangents[indices[i].y];
+
+            meanCurvature += curvatureAlongEdge(currentVertex, verty);
+            divisor++;
+        }
+    }
+    output[id.x] = (meanCurvature / divisor);
+}
