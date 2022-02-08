@@ -1,17 +1,40 @@
-﻿using System;
+﻿#if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEditor;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace f3BC
 {
+    [ExecuteAlways]
     public class BakeCurvature : MonoBehaviour
     {
+        public enum Dest
+        {
+            VertexColors = 0,
+            UVS = 1
+        }
+
+        public enum UVSet
+        {
+            UV0 = 0,
+            UV1 = 1,
+            UV2 = 2,
+            UV3 = 3,
+            UV4 = 4,
+            UV5 = 5,
+            UV6 = 6,
+            UV7 = 7
+        }
+
+        private static readonly int Set = Shader.PropertyToID("UVSet");
+        private static readonly int Dest1 = Shader.PropertyToID("_Dest");
         [HideInInspector] public ComputeShader shader;
         public Material material;
-        public OutputType destinationVertexStream;
+        public Dest dest;
+        public UVSet uvSet;
         private int _kernelMain;
-        private static readonly int Output = Shader.PropertyToID("_Output");
 
         public void OnEnable()
         {
@@ -56,19 +79,13 @@ namespace f3BC
 
             Mesh mesh;
             if (gameObject.TryGetComponent(out SkinnedMeshRenderer smr))
-            {
                 mesh = smr.sharedMesh;
-            }
             else if (gameObject.TryGetComponent(out MeshFilter mf))
-            {
                 mesh = mf.sharedMesh;
-            }
             else
-            {
                 return;
-            }
 
-            if (destinationVertexStream == OutputType.VertexColors)
+            if (dest == Dest.VertexColors)
             {
                 List<Color> colors = new List<Color>();
                 for (int i = 0; i < verts.Length; i++)
@@ -81,26 +98,28 @@ namespace f3BC
 
                 mesh.SetColors(colors);
             }
-            else
+            else if (dest == Dest.UVS)
             {
-                List<Vector4> curvature = new List<Vector4>();
+                List<Vector2> curvature = new List<Vector2>();
                 for (int i = 0; i < verts.Length; i++)
                 {
-                    Vector4 curv = Vector4.zero;
+                    Vector2 curv = Vector2.zero;
                     curv.x = Mathf.Max(output[i], 0f);
                     curv.y = -Mathf.Min(output[i], 0f);
                     curvature.Add(curv);
                 }
 
-                mesh.SetUVs((int) destinationVertexStream, curvature);
+                mesh.SetUVs((int) uvSet, curvature);
             }
 
             mesh.MarkModified();
-#if UNITY_EDITOR
             EditorUtility.SetDirty(mesh);
             AssetDatabase.Refresh();
-#endif
-            material.SetInt(Output, (int) destinationVertexStream);
+            if (material != null)
+            {
+                material.SetInt(Dest1, (int) dest);
+                material.SetInt(Set, (int) uvSet);
+            }
         }
 
         private void GetMeshData(out Vector3[] verts, out Vector3[] normals, out Vector4[] tangents,
@@ -113,17 +132,11 @@ namespace f3BC
 
             Mesh mesh;
             if (gameObject.TryGetComponent(out SkinnedMeshRenderer smr))
-            {
                 mesh = smr.sharedMesh;
-            }
             else if (gameObject.TryGetComponent(out MeshFilter mf))
-            {
                 mesh = mf.sharedMesh;
-            }
             else
-            {
                 return;
-            }
 
             List<Vector3> vertsTmp = new List<Vector3>();
             List<Vector3> normalsTmp = new List<Vector3>();
@@ -136,68 +149,22 @@ namespace f3BC
             int[] meshIndices = mesh.triangles;
 
             Vector3Int offset = Vector3Int.one * vertsTmp.Count;
-            foreach (var vert in meshVerts)
-            {
-                vertsTmp.Add(gameObject.transform.localToWorldMatrix.MultiplyPoint(vert));
-            }
+            foreach (Vector3 vert in meshVerts) vertsTmp.Add(vert);
 
-            foreach (var normal in meshNormals)
-            {
-                normalsTmp.Add(normal);
-            }
+            foreach (Vector3 normal in meshNormals) normalsTmp.Add(normal);
 
-            foreach (var tangent in meshTangents)
-            {
-                tangentsTmp.Add(tangent);
-            }
+            foreach (Vector4 tangent in meshTangents) tangentsTmp.Add(tangent);
 
             for (int i = 0; i < meshIndices.Length; i += 3)
-            {
                 indicesTmp.Add(new Vector3Int(meshIndices[i], meshIndices[i + 1], meshIndices[i + 2]) + offset);
-            }
 
             verts = vertsTmp.ToArray();
             normals = normalsTmp.ToArray();
             tangents = tangentsTmp.ToArray();
             indices = indicesTmp.ToArray();
         }
-
-        public enum OutputType
-        {
-            VertexColors = 8,
-            UV0 = 0,
-            UV1 = 1,
-            UV2 = 2,
-            UV3 = 3,
-            UV4 = 4,
-            UV5 = 5,
-            UV6 = 6,
-            UV7 = 7,
-        }
-
-        public struct Vertex
-        {
-            public Vector3 Position;
-            public Vector3 Normal;
-            public Vector4 Tangent;
-            public int Index;
-        }
-
-        public struct Edge
-        {
-            public Vertex A;
-            public Vertex B;
-        }
-
-        public struct Indice
-        {
-            public Vertex A;
-            public Vertex B;
-            public Vertex C;
-        }
     }
 
-#if UNITY_EDITOR
     [CustomEditor(typeof(BakeCurvature)), CanEditMultipleObjects]
     public class BakeCurvatureEditor : Editor
     {
@@ -209,17 +176,17 @@ namespace f3BC
 
             if (GUILayout.Button("Bake Curvature"))
             {
-                System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                Stopwatch sw = new Stopwatch();
                 sw.Start();
                 Debug.Log("Bake Started");
 
                 tar.RunKernel();
 
                 sw.Stop();
-                Debug.Log($"Bake took {sw.ElapsedMilliseconds} ms.");
+                Debug.Log($"Process took {sw.ElapsedMilliseconds} ms.");
                 GUIUtility.ExitGUI();
             }
         }
     }
-#endif
 }
+#endif

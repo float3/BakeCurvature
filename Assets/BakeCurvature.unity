@@ -311,7 +311,7 @@ GameObject:
   - component: {fileID: 6981471941249146525}
   - component: {fileID: 551569727086661753}
   m_Layer: 0
-  m_Name: default
+  m_Name: BakeCurvature
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -331,7 +331,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   shader: {fileID: 7200000, guid: e93ea0169e1f52843919428d5dc4cb9c, type: 3}
   material: {fileID: 2100000, guid: 9e76a135a48177d479fd69bdb124a76b, type: 2}
-  destinationVertexStream: 0
+  dest: 0
+  uvSet: 1
 --- !u!33 &5892557264566368777
 MeshFilter:
   m_ObjectHideFlags: 0

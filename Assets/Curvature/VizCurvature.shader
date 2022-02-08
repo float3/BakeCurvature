@@ -2,7 +2,8 @@
 {
     Properties
     {
-        [Enum(f3BC.Editor.OutputType)]_Output ("Output", Int) = 7
+        [Enum(f3BC.Editor.Dest)] _Dest ("Dest", Int) = 0
+        [Enum(f3BC.Editor.UVSet)] _UVSet ("UVSet", Int) = 0
     }
 
     SubShader
@@ -31,69 +32,53 @@
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                float2 tex0 : TEXCOORD0;
-                float2 tex1 : TEXCOORD1;
-                float2 tex2 : TEXCOORD2;
-                float2 tex3 : TEXCOORD3;
-                float2 tex4 : TEXCOORD4;
-                float2 tex5 : TEXCOORD5;
-                float2 tex6 : TEXCOORD6;
-                float2 tex7 : TEXCOORD7;
-                float2 color : TEXCOORD8;
+                float2 curvature : TEXCOORD0;
             };
+
+            int _UVSet;
+            int _Dest;
 
             v2f vert(appdata v)
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.tex0 = v.tex0;
-                o.tex1 = v.tex1;
-                o.tex2 = v.tex2;
-                o.tex3 = v.tex3;
-                o.tex4 = v.tex4;
-                o.tex5 = v.tex5;
-                o.tex6 = v.tex6;
-                o.tex7 = v.tex7;
-                o.color = v.color;
+
+                switch (_Dest)
+                {
+                case 0: o.curvature = v.color;
+                    break;
+                case 1:
+                    switch (_UVSet)
+                    {
+                    case 0: o.curvature = v.tex0;
+                        break;
+                    case 1: o.curvature = v.tex1;
+                        break;
+                    case 2: o.curvature = v.tex2;
+                        break;
+                    case 3: o.curvature = v.tex3;
+                        break;
+                    case 4: o.curvature = v.tex4;
+                        break;
+                    case 5: o.curvature = v.tex5;
+                        break;
+                    case 6: o.curvature = v.tex6;
+                        break;
+                    case 7: o.curvature = v.tex7;
+                        break;
+                    default: o.curvature = 0;
+                        break;
+                    }
+                    break;
+                default: o.curvature = 0;
+                    break;
+                }
                 return o;
             }
 
-            int _Output;
-
             float2 frag(v2f i) : SV_Target
             {
-                switch (_Output)
-                {
-                case 8:
-                    return i.color;
-                    break;
-                case 0:
-                    return i.tex0;
-                    break;
-                case 1:
-                    return i.tex1;
-                    break;
-                case 2:
-                    return i.tex2;
-                    break;
-                case 3:
-                    return i.tex3;
-                    break;
-                case 4:
-                    return i.tex4;
-                    break;
-                case 5:
-                    return i.tex5;
-                    break;
-                case 6:
-                    return i.tex6;
-                    break;
-                case 7:
-                    return i.tex7;
-                    break;
-                default:
-                    return float2(0, 0);
-                }
+                return i.curvature;
             }
             ENDCG
         }
