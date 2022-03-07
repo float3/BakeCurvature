@@ -1,6 +1,4 @@
-﻿#pragma kernel ComputeCurvature
-
-int indicelength;
+﻿int indicelength;
 
 struct Vertex
 {
@@ -23,6 +21,15 @@ float curvatureAlongEdge(Vertex vert0, Vertex vert1)
     return dot((normalDelta), normalize(posDelta)) / sq(length(normalize(posDelta)));
 }
 
+float curvatureAlongEdge2(Vertex vert0, Vertex vert1)
+{
+    float normalDelta = length(normalize(vert1.normal) - normalize(vert0.normal));
+    float posDelta = length(normalize(vert1.position) - normalize(vert0.position));
+    return normalDelta/posDelta;
+
+}
+
+#pragma kernel ComputeCurvature
 [numthreads(64,1,1)]
 void ComputeCurvature(uint3 id : SV_DispatchThreadID, RWStructuredBuffer<float3> verts, RWStructuredBuffer<float3> normals,
             RWStructuredBuffer<float4> tangents, RWStructuredBuffer<int3> indices, RWStructuredBuffer<float> output)

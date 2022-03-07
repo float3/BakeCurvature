@@ -4,8 +4,10 @@ using System.Diagnostics;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using System;
+using System.IO;
 
-namespace f3BC
+namespace ThreeCurvatureBaker
 {
     [ExecuteAlways]
     public class BakeCurvature : MonoBehaviour
@@ -28,22 +30,39 @@ namespace f3BC
             UV7 = 7
         }
 
-        private static readonly int Set = Shader.PropertyToID("UVSet");
-        private static readonly int Dest1 = Shader.PropertyToID("_Dest");
+        private static readonly int UVSetProp = Shader.PropertyToID("_UVSet");
+        private static readonly int DestProp = Shader.PropertyToID("_Dest");
         [HideInInspector] public ComputeShader shader;
         public Material material;
         public Dest dest;
         public UVSet uvSet;
         private int _kernelMain;
-
         public void OnEnable()
         {
-            _kernelMain = shader.FindKernel("CSMain");
+            shader = Resources.Load<ComputeShader>("BakeCurvature");
+            _kernelMain = shader.FindKernel("ComputeCurvature");
         }
 
         public void RunKernel()
         {
-            GetMeshData(out Vector3[] verts, out Vector3[] normals, out Vector4[] tangents, out Vector3Int[] indices);
+            Mesh sourcePositionMesh;
+            Mesh sourceMesh;
+            SkinnedMeshRenderer smr = null;
+            MeshFilter mf = null;
+            if (gameObject.TryGetComponent(out smr))
+            {
+                sourceMesh = smr.sharedMesh;
+                sourcePositionMesh = new Mesh();
+                smr.BakeMesh(sourcePositionMesh);
+            }
+            else if (gameObject.TryGetComponent(out mf))
+            {
+                sourceMesh = mf.sharedMesh;
+                sourcePositionMesh = sourceMesh;
+            }
+            else return;
+
+            GetMeshData(sourcePositionMesh, out Vector3[] verts, out Vector3[] normals, out Vector4[] tangents, out Vector3Int[] indices);
 
             Debug.Log($"Mesh has {verts.Length} vertices and {indices.Length} triangles");
 
@@ -77,13 +96,108 @@ namespace f3BC
             indiceBuffer.Release();
             outBuffer.Release();
 
-            Mesh mesh;
-            if (gameObject.TryGetComponent(out SkinnedMeshRenderer smr))
-                mesh = smr.sharedMesh;
-            else if (gameObject.TryGetComponent(out MeshFilter mf))
-                mesh = mf.sharedMesh;
-            else
-                return;
+            string parentName = sourceMesh.name;
+            Mesh newMesh = new Mesh();
+            int size = sourceMesh.vertices.Length;
+            List<Vector4> srcUV = new List<Vector4>();
+            List<Vector4> srcUV2 = new List<Vector4>();
+            List<Vector4> srcUV3 = new List<Vector4>();
+            List<Vector4> srcUV4 = new List<Vector4>();
+            List<Vector4> srcUV5 = new List<Vector4>();
+            List<Vector4> srcUV6 = new List<Vector4>();
+            List<Vector4> srcUV7 = new List<Vector4>();
+            List<Vector4> srcUV8 = new List<Vector4>();
+            sourceMesh.GetUVs(0, srcUV);
+            sourceMesh.GetUVs(1, srcUV2);
+            sourceMesh.GetUVs(2, srcUV3);
+            sourceMesh.GetUVs(3, srcUV4);
+            sourceMesh.GetUVs(4, srcUV5);
+            sourceMesh.GetUVs(5, srcUV6);
+            sourceMesh.GetUVs(6, srcUV7);
+            sourceMesh.GetUVs(7, srcUV8);
+            Vector3[] srcPosVertices = sourcePositionMesh.vertices;
+            Vector3[] srcVertices = sourceMesh.vertices;
+            Color[] srcColors = sourceMesh.colors; // FIXME: Should use colors?
+            Vector3[] srcNormals = sourceMesh.normals;
+            Vector4[] srcTangents = sourceMesh.tangents;
+            Matrix4x4[] srcBindposes = sourceMesh.bindposes;
+            BoneWeight[] srcBoneWeights = sourceMesh.boneWeights;
+            Vector4[] newUV2 = new Vector4[size];
+            newMesh.vertices = srcVertices;
+            if (srcNormals != null && srcNormals.Length > 0)
+            {
+                newMesh.normals = srcNormals;
+            }
+            if (srcTangents != null && srcTangents.Length > 0)
+            {
+                newMesh.tangents = srcTangents;
+            }
+            if (srcBoneWeights != null && srcBoneWeights.Length > 0)
+            {
+                newMesh.boneWeights = srcBoneWeights;
+            }
+            if (srcColors != null && srcColors.Length > 0)
+            {
+                newMesh.colors = srcColors;
+            }
+            if (srcUV.Count > 0)
+            {
+                newMesh.SetUVs(0, srcUV);
+            }
+            if (srcUV2.Count > 0)
+            {
+                newMesh.SetUVs(1, srcUV2);
+            }
+            if (srcUV3.Count > 0)
+            {
+                newMesh.SetUVs(2, srcUV3);
+            }
+            if (srcUV4.Count > 0)
+            {
+                newMesh.SetUVs(3, srcUV4);
+            }
+            if (srcUV5.Count > 0)
+            {
+                newMesh.SetUVs(4, srcUV5);
+            }
+            if (srcUV6.Count > 0)
+            {
+                newMesh.SetUVs(5, srcUV6);
+            }
+            if (srcUV7.Count > 0)
+            {
+                newMesh.SetUVs(6, srcUV7);
+            }
+            if (srcUV8.Count > 0)
+            {
+                newMesh.SetUVs(7, srcUV8);
+            }
+            newMesh.subMeshCount = sourceMesh.subMeshCount;
+            for (int i = 0; i < sourceMesh.subMeshCount; i++)
+            {
+                int[] curIndices = sourceMesh.GetIndices(i);
+                newMesh.SetIndices(curIndices, sourceMesh.GetTopology(i), i);
+            }
+            newMesh.bounds = sourceMesh.bounds;
+            if (srcBindposes != null && srcBindposes.Length > 0)
+            {
+                newMesh.bindposes = sourceMesh.bindposes;
+            }
+            for (int i = 0; i < sourceMesh.blendShapeCount; i++)
+            {
+                string blendShapeName = sourceMesh.GetBlendShapeName(i);
+                int blendShapeFrameCount = sourceMesh.GetBlendShapeFrameCount(i);
+                for (int frameIndex = 0; frameIndex < blendShapeFrameCount; frameIndex++)
+                {
+                    float weight = sourceMesh.GetBlendShapeFrameWeight(i, frameIndex);
+                    Vector3[] deltaVertices = new Vector3[size];
+                    Vector3[] deltaNormals = new Vector3[size];
+                    Vector3[] deltaTangents = new Vector3[size];
+                    sourceMesh.GetBlendShapeFrameVertices(i, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+                    newMesh.AddBlendShapeFrame(blendShapeName, weight, deltaVertices, deltaNormals, deltaTangents);
+                }
+            }
+
 
             if (dest == Dest.VertexColors)
             {
@@ -96,7 +210,7 @@ namespace f3BC
                     colors.Add(color);
                 }
 
-                mesh.SetColors(colors);
+                newMesh.SetColors(colors);
             }
             else if (dest == Dest.UVS)
             {
@@ -109,34 +223,56 @@ namespace f3BC
                     curvature.Add(curv);
                 }
 
-                mesh.SetUVs((int) uvSet, curvature);
+                newMesh.SetUVs((int)uvSet, curvature);
             }
 
-            mesh.MarkModified();
-            EditorUtility.SetDirty(mesh);
+            newMesh.name = sourceMesh.name + "_uvmerged";
+            Mesh meshAfterUpdate = newMesh;
+            if (smr != null)
+            {
+                Undo.RecordObject(smr, "Switched SkinnedMeshRenderer to baked Mesh");
+                smr.sharedMesh = newMesh;
+                meshAfterUpdate = smr.sharedMesh;
+                // No need to change smr.bones: should use same bone indices and blendshapes.
+            }
+            if (mf != null)
+            {
+                Undo.RecordObject(mf, "Switched MeshFilter to baked Mesh");
+                mf.sharedMesh = newMesh;
+                meshAfterUpdate = mf.sharedMesh;
+            }
+            string pathToGenerated = "Assets/Curvature/Generated";
+            if (!Directory.Exists(pathToGenerated))
+            {
+                Directory.CreateDirectory(pathToGenerated);
+            }
+            int lastSlash = parentName.LastIndexOf('/');
+            string outFileName = lastSlash == -1 ? parentName : parentName.Substring(lastSlash + 1);
+            outFileName = outFileName.Split('.')[0];
+            string fileName = pathToGenerated + "/" + outFileName + "_Curvature_" + dest.ToString();
+            fileName += dest == Dest.UVS ? uvSet.ToString() : "";
+            fileName += "_" + DateTime.UtcNow.ToString("s").Replace(':', '_') + ".asset";
+            AssetDatabase.CreateAsset(meshAfterUpdate, fileName);
+            AssetDatabase.SaveAssets();
+            if (smr == null && mf == null)
+            {
+                EditorGUIUtility.PingObject(meshAfterUpdate);
+            }
+
             AssetDatabase.Refresh();
             if (material != null)
             {
-                material.SetInt(Dest1, (int) dest);
-                material.SetInt(Set, (int) uvSet);
+                material.SetInt(DestProp, (int)dest);
+                material.SetInt(UVSetProp, (int)uvSet);
             }
         }
-
-        private void GetMeshData(out Vector3[] verts, out Vector3[] normals, out Vector4[] tangents,
+        private void GetMeshData(Mesh mesh, out Vector3[] verts, out Vector3[] normals, out Vector4[] tangents,
             out Vector3Int[] indices)
         {
             verts = new Vector3[] { };
             normals = new Vector3[] { };
             tangents = new Vector4[] { };
             indices = new Vector3Int[] { };
-
-            Mesh mesh;
-            if (gameObject.TryGetComponent(out SkinnedMeshRenderer smr))
-                mesh = smr.sharedMesh;
-            else if (gameObject.TryGetComponent(out MeshFilter mf))
-                mesh = mf.sharedMesh;
-            else
-                return;
 
             List<Vector3> vertsTmp = new List<Vector3>();
             List<Vector3> normalsTmp = new List<Vector3>();

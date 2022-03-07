@@ -20,6 +20,6 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Floats:
-    - _Dest: 1
-    - _UVSet: 1
+    - _Dest: 0
+    - _UVSet: 0
     m_Colors: []
